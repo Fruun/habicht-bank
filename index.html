@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Habicht Bank"><meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png"><title>Habicht Private Bank</title>
+<style>body{margin:0;background:#0b0d12;color:#eee;font-family:-apple-system,sans-serif;padding:env(safe-area-inset-top) 14px 40px}h1{color:#d4af37;font-family:Georgia,serif;text-align:center;margin:14px 0 2px}.sub{text-align:center;color:#888;font-size:12px}.card{background:#151922;border:1px solid #3a321a;border-radius:14px;padding:14px;margin:12px 0}.gold{color:#d4af37}.big{font-size:28px;font-weight:700}input,select,button{width:100%;box-sizing:border-box;padding:11px;margin:4px 0;border-radius:10px;border:1px solid #333;background:#0f1218;color:#eee;font-size:16px}button{background:#d4af37;color:#111;font-weight:700;border:0}button.s{background:#2a2f3a;color:#eee}.acc{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #222}.row{display:flex;gap:6px}table{width:100%;font-size:13px}td{padding:4px 0;border-bottom:1px solid #222}.neg{color:#e66}.pos{color:#6c6}</style></head><body>
+<h1>Habicht Private Bank</h1><div class="sub">Nur Spielgeld (HB$) – kein echtes Geld</div>
+<div class="card"><div>Gesamtvermögen</div><div class="big gold" id="tot"></div><canvas id="ch" height="120" style="width:100%"></canvas></div>
+<div class="card"><b>Konten</b><div id="accs"></div><div class="row"><input id="nn" placeholder="Name"><button style="width:40%" onclick="neu()">Eröffnen</button></div></div>
+<div class="card"><b>Überweisung</b><select id="tf"></select><select id="tt"></select><input id="ta" type="number" placeholder="Betrag HB$"><input id="tz" placeholder="Verwendungszweck"><button onclick="ueb()">Überweisen</button></div>
+<div class="card"><b>Bankchef</b><select id="ck"></select><input id="ca" type="number" placeholder="Betrag HB$"><div class="row"><button onclick="chef(1)">Geld drucken</button><button class="s" onclick="chef(-1)">Abziehen</button></div><input id="zs" type="number" placeholder="Zinssatz %" value="2"><button onclick="zins()">Zinsen ausschütten</button></div>
+<div class="card"><b>Kontoauszug</b><select id="ak" onchange="r()"></select><table id="az"></table></div>
+<button class="s" onclick="if(confirm('Bank wirklich zurücksetzen?')){localStorage.removeItem('hb');S=init();r()}">Bank zurücksetzen</button>
+<script>
+const f=n=>n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' HB$',$=i=>document.getElementById(i),d=()=>new Date().toLocaleString('de-DE');
+function init(){let s={a:[],h:[]};[['Jeremy',100000],['Max',5000],['Lena',7500]].forEach(([n,b])=>s.a.push({id:Date.now()+Math.random(),n,b,tx:[{d:d(),t:'Kontoeröffnung',v:b}]}));s.h.push(tot(s));return s}
+function tot(s){return s.a.reduce((x,a)=>x+a.b,0)}
+let S=JSON.parse(localStorage.getItem('hb')||'null')||init();
+const g=id=>S.a.find(a=>a.id==id),sv=()=>{S.h.push(tot(S));S.h=S.h.slice(-50);localStorage.setItem('hb',JSON.stringify(S));r()};
+function bk(a,v,t){a.b=Math.round((a.b+v)*100)/100;a.tx.unshift({d:d(),t,v})}
+function neu(){let n=$('nn').value.trim();if(!n)return;S.a.push({id:Date.now(),n,b:0,tx:[{d:d(),t:'Kontoeröffnung',v:0}]});$('nn').value='';sv()}
+function ueb(){let a=g($('tf').value),b=g($('tt').value),v=+$('ta').value,z=$('tz').value||'Überweisung';if(!a||!b||a==b||!(v>0))return alert('Bitte prüfen');if(a.b<v)return alert('Nicht genug Guthaben');bk(a,-v,'An '+b.n+': '+z);bk(b,v,'Von '+a.n+': '+z);$('ta').value=$('tz').value='';sv()}
+function chef(k){let a=g($('ck').value),v=+$('ca').value;if(!a||!(v>0))return;bk(a,k*v,k>0?'Gutschrift Bankchef':'Abbuchung Bankchef');$('ca').value='';sv()}
+function zins(){let p=+$('zs').value;S.a.forEach(a=>{let v=Math.round(a.b*p)/100;if(v>0)bk(a,v,'Zinsen '+p+' %')});sv()}
+function r(){$('tot').textContent=f(tot(S));$('accs').innerHTML=S.a.map(a=>`<div class="acc"><span>${a.n.replace(/</g,'&lt;')}</span><span class="gold">${f(a.b)}</span></div>`).join('');
+let o=S.a.map(a=>`<option value="${a.id}">${a.n.replace(/</g,'&lt;')}</option>`).join('');['tf','tt','ck','ak'].forEach(i=>{let v=$(i).value;$(i).innerHTML=o;if(v)$(i).value=v});if(S.a[1]&&!$('tt').dataset.x){$('tt').value=S.a[1].id;$('tt').dataset.x=1}
+let a=g($('ak').value);$('az').innerHTML=a?a.tx.map(t=>`<tr><td>${t.d}<br>${t.t.replace(/</g,'&lt;')}</td><td align=right class="${t.v<0?'neg':'pos'}">${f(t.v)}</td></tr>`).join(''):'';
+let c=$('ch'),x=c.getContext('2d');c.width=c.clientWidth*2;c.height=240;x.clearRect(0,0,c.width,c.height);let h=S.h,mx=Math.max(...h),mn=Math.min(...h),W=c.width;x.strokeStyle='#d4af37';x.lineWidth=4;x.beginPath();h.forEach((v,i)=>{let px=h.length>1?i*W/(h.length-1):W/2,py=220-(mx==mn?100:(v-mn)/(mx-mn)*200);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke()}
+r();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
