@@ -1,28 +1,151 @@
-<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Habicht Bank"><meta name="theme-color" content="#0b0d12">
-<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png"><title>Habicht Private Bank</title>
-<style>body{margin:0;background:#0b0d12;color:#eee;font-family:-apple-system,sans-serif;padding:env(safe-area-inset-top) 14px 40px}h1{color:#d4af37;font-family:Georgia,serif;text-align:center;margin:14px 0 2px}.sub{text-align:center;color:#888;font-size:12px}.card{background:#151922;border:1px solid #3a321a;border-radius:14px;padding:14px;margin:12px 0}.gold{color:#d4af37}.big{font-size:28px;font-weight:700}input,select,button{width:100%;box-sizing:border-box;padding:11px;margin:4px 0;border-radius:10px;border:1px solid #333;background:#0f1218;color:#eee;font-size:16px}button{background:#d4af37;color:#111;font-weight:700;border:0}button.s{background:#2a2f3a;color:#eee}.acc{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #222}.row{display:flex;gap:6px}table{width:100%;font-size:13px}td{padding:4px 0;border-bottom:1px solid #222}.neg{color:#e66}.pos{color:#6c6}</style></head><body>
-<h1>Habicht Private Bank</h1><div class="sub">Nur Spielgeld (HB$) – kein echtes Geld</div>
-<div class="card"><div>Gesamtvermögen</div><div class="big gold" id="tot"></div><canvas id="ch" height="120" style="width:100%"></canvas></div>
-<div class="card"><b>Konten</b><div id="accs"></div><div class="row"><input id="nn" placeholder="Name"><button style="width:40%" onclick="neu()">Eröffnen</button></div></div>
-<div class="card"><b>Überweisung</b><select id="tf"></select><select id="tt"></select><input id="ta" type="number" placeholder="Betrag HB$"><input id="tz" placeholder="Verwendungszweck"><button onclick="ueb()">Überweisen</button></div>
-<div class="card"><b>Bankchef</b><select id="ck"></select><input id="ca" type="number" placeholder="Betrag HB$"><div class="row"><button onclick="chef(1)">Geld drucken</button><button class="s" onclick="chef(-1)">Abziehen</button></div><input id="zs" type="number" placeholder="Zinssatz %" value="2"><button onclick="zins()">Zinsen ausschütten</button></div>
-<div class="card"><b>Kontoauszug</b><select id="ak" onchange="r()"></select><table id="az"></table></div>
-<button class="s" onclick="if(confirm('Bank wirklich zurücksetzen?')){localStorage.removeItem('hb');S=init();r()}">Bank zurücksetzen</button>
-<script>
-const f=n=>n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' HB$',$=i=>document.getElementById(i),d=()=>new Date().toLocaleString('de-DE');
-function init(){let s={a:[],h:[]};[['Jeremy',100000],['Max',5000],['Lena',7500]].forEach(([n,b])=>s.a.push({id:Date.now()+Math.random(),n,b,tx:[{d:d(),t:'Kontoeröffnung',v:b}]}));s.h.push(tot(s));return s}
-function tot(s){return s.a.reduce((x,a)=>x+a.b,0)}
-let S=JSON.parse(localStorage.getItem('hb')||'null')||init();
-const g=id=>S.a.find(a=>a.id==id),sv=()=>{S.h.push(tot(S));S.h=S.h.slice(-50);localStorage.setItem('hb',JSON.stringify(S));r()};
-function bk(a,v,t){a.b=Math.round((a.b+v)*100)/100;a.tx.unshift({d:d(),t,v})}
-function neu(){let n=$('nn').value.trim();if(!n)return;S.a.push({id:Date.now(),n,b:0,tx:[{d:d(),t:'Kontoeröffnung',v:0}]});$('nn').value='';sv()}
-function ueb(){let a=g($('tf').value),b=g($('tt').value),v=+$('ta').value,z=$('tz').value||'Überweisung';if(!a||!b||a==b||!(v>0))return alert('Bitte prüfen');if(a.b<v)return alert('Nicht genug Guthaben');bk(a,-v,'An '+b.n+': '+z);bk(b,v,'Von '+a.n+': '+z);$('ta').value=$('tz').value='';sv()}
-function chef(k){let a=g($('ck').value),v=+$('ca').value;if(!a||!(v>0))return;bk(a,k*v,k>0?'Gutschrift Bankchef':'Abbuchung Bankchef');$('ca').value='';sv()}
-function zins(){let p=+$('zs').value;S.a.forEach(a=>{let v=Math.round(a.b*p)/100;if(v>0)bk(a,v,'Zinsen '+p+' %')});sv()}
-function r(){$('tot').textContent=f(tot(S));$('accs').innerHTML=S.a.map(a=>`<div class="acc"><span>${a.n.replace(/</g,'&lt;')}</span><span class="gold">${f(a.b)}</span></div>`).join('');
-let o=S.a.map(a=>`<option value="${a.id}">${a.n.replace(/</g,'&lt;')}</option>`).join('');['tf','tt','ck','ak'].forEach(i=>{let v=$(i).value;$(i).innerHTML=o;if(v)$(i).value=v});if(S.a[1]&&!$('tt').dataset.x){$('tt').value=S.a[1].id;$('tt').dataset.x=1}
-let a=g($('ak').value);$('az').innerHTML=a?a.tx.map(t=>`<tr><td>${t.d}<br>${t.t.replace(/</g,'&lt;')}</td><td align=right class="${t.v<0?'neg':'pos'}">${f(t.v)}</td></tr>`).join(''):'';
-let c=$('ch'),x=c.getContext('2d');c.width=c.clientWidth*2;c.height=240;x.clearRect(0,0,c.width,c.height);let h=S.h,mx=Math.max(...h),mn=Math.min(...h),W=c.width;x.strokeStyle='#d4af37';x.lineWidth=4;x.beginPath();h.forEach((v,i)=>{let px=h.length>1?i*W/(h.length-1):W/2,py=220-(mx==mn?100:(v-mn)/(mx-mn)*200);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke()}
-r();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
-</script></body></html>
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Habicht Bank"><meta name="theme-color" content="#0b0d12">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-startup-image" href="splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<title>Habicht Private Bank</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+
+<!-- PIN-Sperre -->
+<div id="lock" hidden>
+  <div class="lk-logo"><img src="icon-192.png" alt=""></div>
+  <h2 id="lk-t">PIN eingeben</h2><div id="lk-s" class="lk-s"></div>
+  <div id="lk-dots"><i></i><i></i><i></i><i></i></div>
+  <div id="lk-pad">
+    <button onclick="pk('1')">1</button><button onclick="pk('2')">2</button><button onclick="pk('3')">3</button>
+    <button onclick="pk('4')">4</button><button onclick="pk('5')">5</button><button onclick="pk('6')">6</button>
+    <button onclick="pk('7')">7</button><button onclick="pk('8')">8</button><button onclick="pk('9')">9</button>
+    <button id="lk-face" class="fn" onclick="pkFace()">Face&nbsp;ID</button>
+    <button onclick="pk('0')">0</button><button class="fn" onclick="pkDel()">⌫</button>
+  </div>
+  <div class="lk-links"><a id="lk-x" onclick="pkCancel()" hidden>Abbrechen</a><a id="lk-forgot" onclick="pkForgot()" hidden>PIN vergessen?</a></div>
+</div>
+
+<!-- Sheet -->
+<div id="sheet" hidden onclick="if(event.target===this)closeSheet()"><div id="sheet-in"></div></div>
+<div id="toast"></div>
+
+<main>
+<header><h1>Habicht Private Bank</h1><div class="sub">Nur Spielgeld (HB$) – kein echtes Geld</div></header>
+
+<!-- START -->
+<section id="t-home" class="tab">
+  <div id="notes"></div>
+  <div class="card"><div class="muted">Gesamtvermögen</div><div class="big gold" id="tot"></div>
+    <div class="muted small" id="tot2"></div><canvas id="ch" height="120" style="width:100%"></canvas></div>
+  <div class="card"><b>Konten</b><div id="accs"></div>
+    <div class="row"><input id="nn" placeholder="Name des neuen Kontos"><select id="nt" style="width:46%"><option value="giro">Girokonto</option><option value="spar">Sparkonto</option></select></div>
+    <button onclick="neu()">Konto eröffnen</button></div>
+  <div class="card"><b>Kontoauszug</b><select id="ak" onchange="renderAz()"></select><table id="az"></table></div>
+</section>
+
+<!-- KARTE -->
+<section id="t-card" class="tab" hidden>
+  <div class="wallet" onclick="this.classList.toggle('flipped')">
+    <div class="wc" id="wc">
+      <div class="face front">
+        <div class="shine"></div>
+        <div class="c-top"><img src="icon-192.png" alt=""><span>Habicht<br>Private Bank</span><span class="nfc">))))</span></div>
+        <div class="chip"></div>
+        <div class="c-num" id="c-num"></div>
+        <div class="c-bot"><div><small>KARTENINHABER</small><div id="c-name"></div></div><div><small>GÜLTIG BIS</small><div id="c-exp"></div></div><div class="brand">HB<br><small>SPIELGELD</small></div></div>
+        <div class="frozen">🔒 GESPERRT</div>
+      </div>
+      <div class="face back">
+        <div class="stripe"></div>
+        <div class="sig"><span id="c-sig"></span><b id="c-cvv"></b></div>
+        <div class="bk-txt">Nur Spielgeld – bei echten Händlern nicht gültig.<br>Habicht Private Bank · Tippen zum Umdrehen</div>
+        <div class="frozen">🔒 GESPERRT</div>
+      </div>
+    </div>
+  </div>
+  <div class="muted small" style="text-align:center">Tippe auf die Karte zum Umdrehen</div>
+  <div class="card"><div class="acc"><span>Kartenkonto</span><span class="gold" id="c-bal"></span></div>
+    <select id="c-acc" onchange="S.cfg.cardAcc=this.value;sv()"></select>
+    <button class="s" id="c-frz" onclick="frz()"></button></div>
+  <div class="card"><b>Mit Karte bezahlen</b>
+    <div class="row"><select id="p-cat"></select><input id="p-amt" type="number" inputmode="decimal" placeholder="Betrag HB$"></div>
+    <input id="p-hn" placeholder="Händler (optional)">
+    <div class="row"><button onclick="pay()">Bezahlen</button><button class="s" onclick="payRnd()">🎲 Zufälliger Einkauf</button></div></div>
+</section>
+
+<!-- ZAHLEN -->
+<section id="t-pay" class="tab" hidden>
+  <div class="card"><b>Überweisung</b><select id="tf"></select><select id="tt"></select><input id="ta" type="number" inputmode="decimal" placeholder="Betrag HB$"><input id="tz" placeholder="Verwendungszweck"><button onclick="ueb()">Überweisen</button></div>
+  <div class="card"><b>📲 Geld per Link / QR-Code senden</b><div class="muted small">Das Geld wird sofort abgebucht. Der Link kann genau einmal eingelöst werden.</div>
+    <select id="lk-from"></select><input id="lk-amt" type="number" inputmode="decimal" placeholder="Betrag HB$"><input id="lk-name" placeholder="Dein Name (Absender)"><input id="lk-z" placeholder="Nachricht (optional)"><button onclick="mkLink()">Link &amp; QR erstellen</button>
+    <div id="out-list"></div></div>
+  <div class="card"><b>📥 Link / Code einlösen</b><div class="muted small">Link aus einer Nachricht oder den Code einfügen.</div>
+    <input id="rd-in" placeholder="Link oder Code einfügen"><button onclick="redeemInput()">Prüfen &amp; einlösen</button></div>
+  <div class="card"><b>🔁 Daueraufträge</b><div id="so-list"></div>
+    <details><summary>Neuer Dauerauftrag</summary>
+      <select id="so-from"></select><select id="so-to" onchange="soToChg()"></select><input id="so-ext" placeholder="Empfänger (z.B. Vermieter)" hidden>
+      <select id="so-cat"></select><input id="so-amt" type="number" inputmode="decimal" placeholder="Betrag HB$"><input id="so-day" type="number" inputmode="numeric" placeholder="Tag im Monat (1–28)" min="1" max="28"><input id="so-z" placeholder="Verwendungszweck"><button onclick="addSO()">Dauerauftrag anlegen</button></details></div>
+  <div class="card"><b>💼 Monatliches Gehalt</b><div class="muted small">Wird automatisch am gewählten Tag gutgeschrieben – auch nachträglich, wenn du die App länger nicht geöffnet hast.</div>
+    <label class="tg"><input type="checkbox" id="sal-on" onchange="salSave()"> Gehalt aktiv</label>
+    <select id="sal-acc" onchange="salSave()"></select>
+    <div class="row"><input id="sal-amt" type="number" inputmode="decimal" placeholder="Betrag HB$" onchange="salSave()"><input id="sal-day" type="number" inputmode="numeric" placeholder="Tag (1–28)" min="1" max="28" onchange="salSave()"></div>
+    <div class="muted small" id="sal-info"></div></div>
+</section>
+
+<!-- DEPOT -->
+<section id="t-dep" class="tab" hidden>
+  <div class="card"><div class="muted">Depotwert</div><div class="big gold" id="dep-val"></div><div class="small" id="dep-pl"></div></div>
+  <div class="card"><b>Mein Depot</b><div id="dep-list"></div></div>
+  <div class="card"><b>📈 Aktien (fiktiv)</b><div id="mk-a"></div></div>
+  <div class="card"><b>🪙 Krypto (fiktiv)</b><div id="mk-k"></div></div>
+  <div class="muted small" style="text-align:center">Alle Firmen &amp; Kurse sind erfunden und zufällig – nur zum Spaß.</div>
+</section>
+
+<!-- STATISTIK -->
+<section id="t-stat" class="tab" hidden>
+  <div class="card"><b>Ausgaben nach Kategorie</b>
+    <select id="st-per" onchange="renderStat()"><option value="m">Dieser Monat</option><option value="30">Letzte 30 Tage</option><option value="a">Alles</option></select>
+    <div class="donutw"><canvas id="dn" width="440" height="440" style="width:220px;height:220px"></canvas><div class="dn-c"><div class="muted small">Ausgaben</div><b id="dn-t"></b></div></div>
+    <div id="st-leg"></div>
+    <div class="row sums"><div><div class="muted small">Einnahmen</div><b class="pos" id="st-in"></b></div><div><div class="muted small">Ausgaben</div><b class="neg" id="st-out"></b></div></div></div>
+  <div class="card"><b>Einnahmen / Ausgaben pro Monat</b><canvas id="mb" width="680" height="320" style="width:100%"></canvas><div class="muted small"><span class="pos">■</span> Einnahmen &nbsp; <span class="neg">■</span> Ausgaben</div></div>
+</section>
+
+<!-- MEHR -->
+<section id="t-more" class="tab" hidden>
+  <div class="card"><b>Sicherheit</b>
+    <button class="s" onclick="changePin()">PIN ändern</button>
+    <button class="s" id="fid-btn" onclick="toggleFace()"></button>
+    <div class="muted small" id="fid-info"></div>
+    <button class="s" onclick="lockNow()">🔒 Jetzt sperren</button></div>
+  <div class="card"><b>Profil &amp; Sparzins</b>
+    <input id="cf-name" placeholder="Name auf der Karte"><div class="row"><input id="cf-rate" type="number" inputmode="decimal" step="0.1" placeholder="Sparzins % p.a."><button style="width:40%" onclick="cfSave()">Speichern</button></div>
+    <div class="muted small">Zinsen werden täglich auf allen Sparkonten gutgeschrieben.</div></div>
+  <div class="card"><b>Bankchef</b><select id="ck"></select><input id="ca" type="number" inputmode="decimal" placeholder="Betrag HB$"><div class="row"><button onclick="chef(1)">Geld drucken</button><button class="s" onclick="chef(-1)">Abziehen</button></div><div class="row"><input id="zs" type="number" inputmode="decimal" placeholder="Zinssatz %" value="2"><button onclick="zins()">Zinsen ausschütten</button></div></div>
+  <div class="card"><b>Sicherung</b><div class="muted small">Daten liegen nur auf diesem iPhone. Kopiere eine Sicherung und hebe sie z.B. in Notizen auf.</div>
+    <button class="s" onclick="bkExport()">Sicherung kopieren</button><button class="s" onclick="bkImport()">Sicherung einspielen</button></div>
+  <button class="s" onclick="resetBank()">Bank zurücksetzen</button>
+  <div class="muted small" style="text-align:center;margin-top:14px">Habicht Private Bank · Version 2.0 · Spielgeld</div>
+</section>
+</main>
+
+<nav id="tabs">
+  <a data-t="home" class="on">🏠<span>Start</span></a><a data-t="card">💳<span>Karte</span></a><a data-t="pay">💸<span>Zahlen</span></a>
+  <a data-t="dep">📈<span>Depot</span></a><a data-t="stat">📊<span>Statistik</span></a><a data-t="more">⚙️<span>Mehr</span></a>
+</nav>
+<script src="qr.js"></script>
+<script src="app.js"></script>
+</body></html>
