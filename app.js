@@ -1,11 +1,12 @@
 'use strict';
-/* Habicht Private Bank v2 – nur Spielgeld */
+/* Habicht Private Bank v3 – nur Spielgeld */
 const $=i=>document.getElementById(i);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf=(n,dg=2)=>n.toLocaleString('de-DE',{minimumFractionDigits:dg,maximumFractionDigits:dg});
 const f=n=>nf(n)+' HB$';
 const r2=x=>Math.round(x*100)/100;
 const rid=()=>Math.random().toString(36).slice(2,10);
+const SLOT=30*60*1000,SMAX=336,slotNow=()=>Math.floor(Date.now()/SLOT);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const fmtD=ts=>new Date(ts).toLocaleString('de-DE');
 const pad=n=>String(n).padStart(2,'0');
@@ -29,7 +30,7 @@ const depVal=()=>Object.keys(S.dep).reduce((x,k)=>x+S.dep[k].q*(S.mk.p[k]||0),0)
 const depCost=()=>Object.keys(S.dep).reduce((x,k)=>x+S.dep[k].c,0);
 const tot=s=>s.a.reduce((x,a)=>x+a.b,0)+(s.dep?Object.keys(s.dep).reduce((x,k)=>x+s.dep[k].q*((s.mk&&s.mk.p[k])||0),0):0);
 const persist=()=>{try{localStorage.setItem('hb',JSON.stringify(S))}catch(e){}};
-const sv=()=>{S.h.push(r2(tot(S)));S.h=S.h.slice(-60);persist();render()};
+const sv=()=>{S.h.push(r2(tot(S)));S.h=S.h.slice(-60);checkAch();persist();render()};
 function toast(m,bad){const t=$('toast'),e=document.createElement('div');e.textContent=m;if(bad)e.className='bad';t.appendChild(e);setTimeout(()=>e.remove(),bad?3600:2600)}
 
 function parseD(s){const m=/(\d{1,2})\.(\d{1,2})\.(\d{4}),?\s*(\d{1,2})?:?(\d{2})?/.exec(s||'');return m?new Date(+m[3],m[2]-1,+m[1],+(m[4]||0),+(m[5]||0)).getTime():Date.now()}
@@ -40,11 +41,11 @@ function gauss(){return Math.sqrt(-2*Math.log(Math.random()||1e-9))*Math.cos(2*M
 function stepP(a,p,sc){let lp=Math.log(p);lp+=-0.015*sc*(lp-Math.log(a.p))+a.v*gauss()*Math.sqrt(sc);return Math.max(0.01,Math.round(Math.exp(lp)*10000)/10000)}
 
 function fresh(){
-  const s={v:2,a:[newAcc('Girokonto','giro',10000),newAcc('Sparkonto','spar',0)],h:[]};
+  const s={v:3,xp:0,a:[newAcc('Girokonto','giro',10000),newAcc('Sparkonto','spar',0)],h:[]};
   s.h.push(10000);return migrate(s);
 }
 function migrate(s){
-  s.v=2;s.a=s.a||[];s.h=s.h||[];
+  const ov=s.v||1;s.v=3;s.a=s.a||[];s.h=s.h||[];
   s.a.forEach((a,i)=>{
     a.type=a.type||'giro';if(a.own===undefined)a.own=(i===0);
     a.tx=a.tx||[];
@@ -60,16 +61,20 @@ function migrate(s){
   s.lastInt=s.lastInt||dkey(new Date());
   if(!s.mk||!s.mk.p)s.mk=initMarket();
   s.dep=s.dep||{};s.so=s.so||[];s.out=s.out||{};s.red=s.red||[];
-  s.sal=Object.assign({on:false,acc:null,amt:2500,day:1,last:''},s.sal||{});
+  const os=s.sal||{};s.sal={on:!!os.on,acc:os.acc||null,amt:os.amt,last:os.last};
+  if(ov<3){s.sal.amt=r2(Math.max(1,(os.amt||2500)/50));s.sal.last=slotNow()}
+  if(!(s.sal.amt>0))s.sal.amt=50;if(typeof s.sal.last!=='number')s.sal.last=slotNow();
+  s.bank=fixBank(s.bank);initProgress(s,ov);
   if(!s.sal.acc||!s.a.some(a=>String(a.id)===String(s.sal.acc)))s.sal.acc=s.cfg.cardAcc;
   return s;
 }
 function load(){let x=null;try{x=JSON.parse(localStorage.getItem('hb')||'null')}catch(e){}
   if(x&&x.a&&x.a.length){S=migrate(x)}else S=fresh();
+  const n=checkAch(true);if(S._retro){delete S._retro;if(n)NOTES.push('🏆 '+n+' Erfolge wurden rückwirkend freigeschaltet – schau unter Mehr → Erfolge &amp; Level')}
   persist()}
 
 /* ---------- Buchungen ---------- */
-function bk(a,v,t,o){o=o||{};const ts=o.ts||Date.now();a.b=r2(a.b+v);const tx={d:fmtD(ts),ts,t,v:r2(v),c:o.c||'Sonstiges'};if(o.x)tx.x=1;a.tx.unshift(tx);if(a.tx.length>600)a.tx.length=600}
+function bk(a,v,t,o){o=o||{};const ts=o.ts||Date.now();a.b=r2(a.b+v);const tx={d:fmtD(ts),ts,t,v:r2(v),c:o.c||'Sonstiges'};if(o.x)tx.x=1;a.tx.unshift(tx);if(a.tx.length>3000)a.tx.length=3000}
 function mkey(m){return Math.floor(m/12)+'-'+pad(m%12+1)}
 function pm(k){const [y,m]=k.split('-').map(Number);return y*12+m-1}
 function dueM(last,day){const now=new Date(),cur=now.getFullYear()*12+now.getMonth();let m=(last?pm(last):cur-1)+1;const out=[];while(m<=cur&&out.length<24){if(m===cur&&day>now.getDate())break;out.push(m);m++}return out}
@@ -80,6 +85,7 @@ function procInterest(msgs){
   const today=dkey(new Date());let n=daysBetween(S.lastInt,today);if(n<=0)return;n=Math.min(n,3650);
   S.a.filter(a=>a.type==='spar').forEach(a=>{let sum=0;
     for(let k=1;k<=n;k++){const iv=r2(a.b*S.cfg.rate/36500);if(iv>0){bk(a,iv,'Zinsen '+nf(S.cfg.rate,1)+' % p.a.',{c:'Zinsen',ts:addDays(S.lastInt,k).getTime()});sum+=iv}}
+    if(sum>0)bump('int',n);
     if(sum>0)msgs.push('💰 Zinsen für '+n+' Tag'+(n>1?'e':'')+': +'+f(r2(sum))+' ('+a.n+')')});
   S.lastInt=today;
 }
@@ -99,9 +105,13 @@ function procOrders(msgs){
       else{msgs.push('⚠️ Dauerauftrag '+esc(o.z||'')+' nicht ausgeführt: zu wenig Guthaben auf '+from.n);break}}});
 }
 function procSalary(msgs){
-  const s=S.sal;if(!s.on)return;const a=g(s.acc);if(!a)return;
-  for(const m of dueM(s.last,s.day)){bk(a,s.amt,'Gehalt Habicht AG',{c:'Gehalt',ts:tsOf(m,s.day)});s.last=mkey(m);msgs.push('💼 Gehalt: +'+f(s.amt)+' ('+a.n+')')}
-}
+  const s=S.sal;if(!s.on)return 0;const a=g(s.acc);if(!a)return 0;
+  const now=slotNow();let n=now-s.last;if(n<=0)return 0;const capped=n>SMAX;if(capped)n=SMAX;
+  const v=r2(s.amt*n);bk(a,v,n===1?'Gehalt Habicht AG':'Gehalt Habicht AG ('+n+' × 30 Min.)',{c:'Gehalt',ts:now*SLOT});
+  s.last=now;bump('sal',n);xp(Math.min(n,3));
+  msgs.push('💼 Gehalt: +'+f(v)+(n>1?' ('+n+' × 30 Min.'+(capped?', max. 7 Tage nachgeholt':'')+')':'')+' ('+a.n+')');return n}
+function salInfo(){const s=S.sal,el=$('sal-info');if(!el)return;if(!s.on){el.textContent='Aus.';return}
+  const ms=Math.max(0,(s.last+1)*SLOT-Date.now()),m=Math.floor(ms/60000),sec=Math.floor(ms/1000)%60;el.textContent='Nächste Gutschrift: '+f(s.amt)+' in '+pad(m)+':'+pad(sec)+' (alle 30 Min., um :00 und :30)'}
 function procMarket(){
   const mk=S.mk,now=Date.now();let steps=Math.floor((now-mk.ts)/STEP);if(steps<=0)return;
   if(steps>960){mk.ts=now-960*STEP;steps=960}
@@ -109,18 +119,21 @@ function procMarket(){
   mk.ts+=steps*STEP;
 }
 function liveTick(){
-  if(LOCKED||document.hidden)return;const mk=S.mk;
+  if(LOCKED||document.hidden)return;
+  if(S.bank.last!==dkey(new Date())){processAll();render();return}
+  const sm=[],sn=procSalary(sm);if(sn){toast(sm[0].replace(/ \(.*\)$/,''));S.h.push(r2(tot(S)));S.h=S.h.slice(-60);checkAch();persist();render()}
+  const mk=S.mk;
   ASSETS.forEach(a=>{const p=stepP(a,mk.p[a.s],0.0056);mk.p[a.s]=p;const h=mk.h[a.s];h[h.length-1]=p});
   if(Date.now()-mk.ts>=STEP){procMarket()}
-  renderMarket();renderTotals();updTrade();
+  renderMarket();renderTotals();updTrade();salInfo();
 }
-function processAll(){const msgs=[];procInterest(msgs);procOrders(msgs);procSalary(msgs);procMarket();if(msgs.length){NOTES=msgs.concat(NOTES).slice(0,8);S.h.push(r2(tot(S)));S.h=S.h.slice(-60)}persist()}
+function processAll(){const msgs=[];procInterest(msgs);procOrders(msgs);procSalary(msgs);procBank(msgs);procMarket();if(msgs.length){NOTES=msgs.concat(NOTES).slice(0,10);checkAch();S.h.push(r2(tot(S)));S.h=S.h.slice(-60)}persist()}
 
 /* ---------- Konten & Überweisung ---------- */
-function neu(){const n=$('nn').value.trim();if(!n)return toast('Bitte einen Namen eingeben',1);S.a.push(newAcc(n,$('nt').value,0));$('nn').value='';sv();toast('Konto eröffnet ✓')}
+function neu(){const n=$('nn').value.trim();if(!n)return toast('Bitte einen Namen eingeben',1);S.a.push(newAcc(n,$('nt').value,0));xp(20);$('nn').value='';sv();toast('Konto eröffnet ✓')}
 function ueb(){const a=g($('tf').value),b=g($('tt').value),v=r2(+$('ta').value),z=$('tz').value.trim();
   if(!a||!b||a===b||!(v>0))return toast('Bitte Eingaben prüfen',1);if(a.b<v)return toast('Nicht genug Guthaben',1);
-  execTransfer(a,b,null,v,z||'Überweisung','Überweisung');$('ta').value=$('tz').value='';sv();toast('Überwiesen ✓')}
+  execTransfer(a,b,null,v,z||'Überweisung','Überweisung');if(!(a.own&&b.own))bump('tf');xp(5);$('ta').value=$('tz').value='';sv();toast('Überwiesen ✓')}
 function chef(k){const a=g($('ck').value),v=r2(+$('ca').value);if(!a||!(v>0))return;bk(a,k*v,k>0?'Gutschrift Bankchef':'Abbuchung Bankchef',{x:1});$('ca').value='';sv()}
 function zins(){const p=+$('zs').value;S.a.forEach(a=>{const v=r2(a.b*p/100);if(v>0)bk(a,v,'Zinsen '+p+' %',{c:'Zinsen'})});sv()}
 
@@ -132,7 +145,7 @@ function pay(cat,amt,shop){
   if(S.cfg.frozen)return toast('Karte ist gesperrt',1);
   if(!(amt>0))return toast('Bitte Betrag eingeben',1);
   if(a.b<amt)return toast('Karte abgelehnt – zu wenig Guthaben',1);
-  bk(a,-amt,'Kartenzahlung '+shop,{c:cat});$('p-amt').value=$('p-hn').value='';sv();toast('Bezahlt: '+f(amt)+' bei '+shop+' ✓')}
+  bk(a,-amt,'Kartenzahlung '+shop,{c:cat});bump('pay');xp(5);$('p-amt').value=$('p-hn').value='';sv();toast('Bezahlt: '+f(amt)+' bei '+shop+' ✓')}
 function payRnd(){const c=CATS.filter(x=>x!=='Überweisung'&&x!=='Miete')[Math.floor(Math.random()*8)];const rng={Supermarkt:[8,90],Restaurant:[12,70],Tanken:[30,90],Shopping:[15,200],Freizeit:[8,60],Reisen:[40,400],Abos:[5,20],Sonstiges:[3,40]}[c];pay(c,rng[0]+Math.random()*(rng[1]-rng[0]))}
 
 /* ---------- Links / QR ---------- */
@@ -155,7 +168,7 @@ function mkLink(){
   const nm=$('lk-name').value.trim()||S.cfg.name.split(' ')[0],z=$('lk-z').value.trim().slice(0,60);
   const id=rid()+rid().slice(0,4),p={i:id,a:v,n:nm.slice(0,30),z,t:Date.now()},token=mkToken(p);
   bk(a,-v,'Link-Überweisung '+(z?'('+z+')':''),{c:'Überweisung'});
-  S.out[id]={a:v,acc:a.id,ts:p.t,z,token,done:false};
+  bump('link');xp(15);S.out[id]={a:v,acc:a.id,ts:p.t,z,token,done:false};
   $('lk-amt').value=$('lk-z').value='';sv();showLink(id);
 }
 function showLink(id){
@@ -188,7 +201,7 @@ function openRedeem(r){
 function doRedeem(token){const r=parseToken(token);if(!r)return;const p=r.p;if(S.red.includes(p.i)){closeSheet();return toast('Schon eingelöst',1)}
   const a=g($('rd-acc').value);if(!a)return;S.red.push(p.i);if(S.red.length>1000)S.red.shift();
   const mine=S.out[p.i];if(mine)mine.done=true;
-  bk(a,p.a,'Von '+(p.n||'Freund')+(p.z?': '+p.z:''),{c:'Überweisung',x:mine?1:0});sv();closeSheet();toast('+'+f(p.a)+' gutgeschrieben 🎉')}
+  if(!mine){bump('red');xp(15)}bk(a,p.a,'Von '+(p.n||'Freund')+(p.z?': '+p.z:''),{c:'Überweisung',x:mine?1:0});sv();closeSheet();toast('+'+f(p.a)+' gutgeschrieben 🎉')}
 
 /* ---------- Daueraufträge / Gehalt ---------- */
 function soToChg(){$('so-ext').hidden=$('so-to').value!=='__ext'}
@@ -198,13 +211,12 @@ function addSO(){
   if(to==='__ext'&&!ext)return toast('Empfänger eingeben',1);if(to===from)return toast('Quelle und Ziel sind gleich',1);
   S.so.push({id:rid(),from,to:to==='__ext'?null:to,ext:to==='__ext'?ext:null,cat:$('so-cat').value,amt,day,z:$('so-z').value.trim(),last:lastFor(day)});
   $('so-amt').value=$('so-day').value=$('so-z').value=$('so-ext').value='';
-  processAll();sv();toast('Dauerauftrag angelegt ✓');
+  bump('so');xp(20);processAll();sv();toast('Dauerauftrag angelegt ✓');
 }
 function delSO(id){if(!confirm('Dauerauftrag löschen?'))return;S.so=S.so.filter(o=>o.id!==id);sv()}
 function salSave(){const s=S.sal,was=s.on;s.on=$('sal-on').checked;s.acc=$('sal-acc').value;s.amt=r2(+$('sal-amt').value)||0;
-  const dd=Math.round(+$('sal-day').value);s.day=dd>=1&&dd<=28?dd:1;
-  if(s.on&&!was){s.last=lastFor(s.day)}
-  const m=[];procSalary(m);if(m.length)NOTES=m.concat(NOTES).slice(0,8);sv()}
+  if(s.on&&!was){s.last=slotNow()}
+  const m=[];procSalary(m);if(m.length)NOTES=m.concat(NOTES).slice(0,10);sv()}
 
 /* ---------- Depot ---------- */
 let TR=null;
@@ -235,10 +247,10 @@ function trade(k){
   const s=TR,a=g($('tr-acc').value),p=S.mk.p[s],d=S.dep[s]||(S.dep[s]={q:0,c:0});
   if(!a)return;
   if(k>0){const amt=r2(+$('tr-amt').value);if(!(amt>0))return toast('Betrag eingeben',1);if(a.b<amt)return toast('Nicht genug Guthaben',1);
-    const q=amt/p;d.q+=q;d.c+=amt;bk(a,-amt,'Kauf '+s+' ('+nf(q,q<1?6:3)+' Stk.)',{c:'Depot',x:1});toast('Gekauft ✓')}
+    const q=amt/p;d.q+=q;d.c+=amt;bump('buy');xp(8);if(((ASSETS.find(x=>x.s===s)||{}).t)==='k')bump('kb');bk(a,-amt,'Kauf '+s+' ('+nf(q,q<1?6:3)+' Stk.)',{c:'Depot',x:1});toast('Gekauft ✓')}
   else{if(!(d.q>0))return toast('Nichts zu verkaufen',1);let q;
     if(k===-2)q=d.q;else{const amt=+$('tr-amt').value;if(!(amt>0))return toast('Betrag eingeben',1);q=Math.min(d.q,amt/p)}
-    const v=r2(q*p),frac=q/d.q;d.c=d.q-q<1e-9?0:d.c*(1-frac);d.q=d.q-q<1e-9?0:d.q-q;
+    const v=r2(q*p),frac=q/d.q;{const pf=v-d.c*frac;bump('rp',r2(pf));bump('sell');xp(8);if(pf>0){bump('win');xp(15)}}d.c=d.q-q<1e-9?0:d.c*(1-frac);d.q=d.q-q<1e-9?0:d.q-q;
     bk(a,v,'Verkauf '+s+' ('+nf(q,q<1?6:3)+' Stk.)',{c:'Depot',x:1});toast('Verkauft: +'+f(v)+' ✓')}
   if(d.q<=0)delete S.dep[s];
   sv();if(!$('sheet').hidden){const v=$('tr-amt');if(v)v.value='';updTrade();const sel=$('tr-acc');if(sel){const cur=sel.value;sel.innerHTML=own().map(x=>`<option value="${x.id}">${esc(x.n)} · ${f(x.b)}</option>`).join('');sel.value=cur}}
@@ -290,21 +302,22 @@ function render(){
   $('c-num').textContent=S.cfg.card.num;$('c-name').textContent=S.cfg.name.toUpperCase();$('c-exp').textContent=S.cfg.card.exp;$('c-sig').textContent=S.cfg.name;$('c-cvv').textContent=S.cfg.card.cvv;
   document.querySelector('.wallet').classList.toggle('frz',!!S.cfg.frozen);$('c-frz').textContent=S.cfg.frozen?'🔓 Karte entsperren':'🔒 Karte sperren';
   $('so-list').innerHTML=S.so.length?S.so.map(o=>{const fr=g(o.from),to=o.to?g(o.to):null;return `<div class="acc"><span>${f(o.amt)} · jeden ${o.day}.<small>${esc(fr?fr.n:'?')} → ${esc(to?to.n:o.ext||'?')} · ${esc(o.cat)}${o.z?' · '+esc(o.z):''}${o.off?' · inaktiv':''}</small></span><button class="s" style="width:auto;padding:8px 12px" onclick="delSO('${o.id}')">✕</button></div>`}).join(''):'<div class="muted small" style="padding:8px 0">Keine Daueraufträge.</div>';
-  const s=S.sal;$('sal-on').checked=s.on;$('sal-acc').value=s.acc;if(document.activeElement!==$('sal-amt'))$('sal-amt').value=s.amt;if(document.activeElement!==$('sal-day'))$('sal-day').value=s.day;
-  $('sal-info').textContent=s.on?'Nächstes Gehalt: '+f(s.amt)+' am '+s.day+'. jedes Monats.':'Aus.';
+  const s=S.sal;$('sal-on').checked=s.on;$('sal-acc').value=s.acc;if(document.activeElement!==$('sal-amt'))$('sal-amt').value=s.amt;
+  salInfo();
   if(document.activeElement!==$('cf-name'))$('cf-name').value=S.cfg.name;if(document.activeElement!==$('cf-rate'))$('cf-rate').value=S.cfg.rate;
-  renderOut();renderMarket();renderStat();drawChart();renderFid();
+  renderOut();renderMarket();renderStat();drawChart();renderFid();renderBank();renderAch();
 }
 function drawChart(){const c=$('ch'),x=c.getContext('2d');c.width=c.clientWidth*2;c.height=240;x.clearRect(0,0,c.width,c.height);const h=S.h.length>1?S.h:[S.h[0]||0,S.h[0]||0],mx=Math.max(...h),mn=Math.min(...h),W=c.width;
   x.strokeStyle='#d4af37';x.lineWidth=4;x.beginPath();h.forEach((v,i)=>{const px=h.length>1?i*W/(h.length-1):W/2,py=220-(mx===mn?100:(v-mn)/(mx-mn)*200);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke()}
-function showTab(t){document.querySelectorAll('.tab').forEach(s=>s.hidden=s.id!=='t-'+t);document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on',a.dataset.t===t));window.scrollTo(0,0);if(t==='home')drawChart();if(t==='stat')renderStat()}
+const SUBTAB={stat:'more',ach:'more'};
+function showTab(t){document.querySelectorAll('.tab').forEach(s=>s.hidden=s.id!=='t-'+t);document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on',a.dataset.t===(SUBTAB[t]||t)));window.scrollTo(0,0);if(t==='home')drawChart();if(t==='stat')renderStat();if(t==='ach')renderAch()}
 document.querySelectorAll('#tabs a').forEach(a=>a.onclick=()=>showTab(a.dataset.t));
 function openSheet(h){$('sheet-in').innerHTML=h;$('sheet').dataset.kind='';$('sheet').hidden=false}
 function closeSheet(){$('sheet').hidden=true;$('sheet-in').innerHTML='';TR=null}
 function cfSave(){const n=$('cf-name').value.trim(),r=+$('cf-rate').value;if(n)S.cfg.name=n.slice(0,26);if(r>=0&&r<=100)S.cfg.rate=r;sv();toast('Gespeichert ✓')}
 function resetBank(){if(!confirm('Bank wirklich zurücksetzen? Alle Konten & das Depot werden gelöscht.'))return;if(!confirm('Wirklich sicher? Das kann nicht rückgängig gemacht werden.'))return;S=fresh();NOTES=[];persist();render();showTab('home')}
 function bkExport(){copyTxt(JSON.stringify(S))}
-function bkImport(){const t=prompt('Sicherung hier einfügen:');if(!t)return;try{const x=JSON.parse(t);if(!x.a||!x.a.length)throw 0;S=migrate(x);persist();render();toast('Sicherung eingespielt ✓')}catch(e){toast('Ungültige Sicherung',1)}}
+function bkImport(){const t=prompt('Sicherung hier einfügen:');if(!t)return;try{const x=JSON.parse(t);if(!x.a||!x.a.length)throw 0;S=migrate(x);checkAch(true);delete S._retro;processAll();persist();render();toast('Sicherung eingespielt ✓')}catch(e){toast('Ungültige Sicherung',1)}}
 
 /* ---------- PIN-Sperre ---------- */
 let SEC=null;try{SEC=JSON.parse(localStorage.getItem('hb_sec')||'null')}catch(e){}

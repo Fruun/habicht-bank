@@ -48,12 +48,13 @@
 <!-- START -->
 <section id="t-home" class="tab">
   <div id="notes"></div>
+  <div class="card lvl" id="lvl-chip" onclick="showTab('ach')"></div>
   <div class="card"><div class="muted">Gesamtvermögen</div><div class="big gold" id="tot"></div>
     <div class="muted small" id="tot2"></div><canvas id="ch" height="120" style="width:100%"></canvas></div>
   <div class="card"><b>Konten</b><div id="accs"></div>
     <div class="row"><input id="nn" placeholder="Name des neuen Kontos"><select id="nt" style="width:46%"><option value="giro">Girokonto</option><option value="spar">Sparkonto</option></select></div>
     <button onclick="neu()">Konto eröffnen</button></div>
-  <div class="card"><b>Kontoauszug</b><select id="ak" onchange="renderAz()"></select><table id="az"></table></div>
+  <div class="card"><b>Kontoauszug</b><select id="ak" onchange="renderAz()"></select><button class="s" onclick="openPdfSheet($('ak').value)">📄 Als PDF …</button><table id="az"></table></div>
 </section>
 
 <!-- KARTE -->
@@ -98,10 +99,10 @@
     <details><summary>Neuer Dauerauftrag</summary>
       <select id="so-from"></select><select id="so-to" onchange="soToChg()"></select><input id="so-ext" placeholder="Empfänger (z.B. Vermieter)" hidden>
       <select id="so-cat"></select><input id="so-amt" type="number" inputmode="decimal" placeholder="Betrag HB$"><input id="so-day" type="number" inputmode="numeric" placeholder="Tag im Monat (1–28)" min="1" max="28"><input id="so-z" placeholder="Verwendungszweck"><button onclick="addSO()">Dauerauftrag anlegen</button></details></div>
-  <div class="card"><b>💼 Monatliches Gehalt</b><div class="muted small">Wird automatisch am gewählten Tag gutgeschrieben – auch nachträglich, wenn du die App länger nicht geöffnet hast.</div>
+  <div class="card"><b>💼 Gehalt alle 30 Minuten</b><div class="muted small">Wird alle 30 Minuten (um :00 und :30) gutgeschrieben – auch live in der offenen App. Verpasste Intervalle werden beim Öffnen nachgeholt (maximal 7 Tage).</div>
     <label class="tg"><input type="checkbox" id="sal-on" onchange="salSave()"> Gehalt aktiv</label>
     <select id="sal-acc" onchange="salSave()"></select>
-    <div class="row"><input id="sal-amt" type="number" inputmode="decimal" placeholder="Betrag HB$" onchange="salSave()"><input id="sal-day" type="number" inputmode="numeric" placeholder="Tag (1–28)" min="1" max="28" onchange="salSave()"></div>
+    <input id="sal-amt" type="number" inputmode="decimal" placeholder="Betrag pro 30 Min. in HB$" onchange="salSave()">
     <div class="muted small" id="sal-info"></div></div>
 </section>
 
@@ -116,6 +117,7 @@
 
 <!-- STATISTIK -->
 <section id="t-stat" class="tab" hidden>
+  <a class="back" onclick="showTab('more')">‹ Mehr</a>
   <div class="card"><b>Ausgaben nach Kategorie</b>
     <select id="st-per" onchange="renderStat()"><option value="m">Dieser Monat</option><option value="30">Letzte 30 Tage</option><option value="a">Alles</option></select>
     <div class="donutw"><canvas id="dn" width="440" height="440" style="width:220px;height:220px"></canvas><div class="dn-c"><div class="muted small">Ausgaben</div><b id="dn-t"></b></div></div>
@@ -124,8 +126,39 @@
   <div class="card"><b>Einnahmen / Ausgaben pro Monat</b><canvas id="mb" width="680" height="320" style="width:100%"></canvas><div class="muted small"><span class="pos">■</span> Einnahmen &nbsp; <span class="neg">■</span> Ausgaben</div></div>
 </section>
 
+<!-- BANK -->
+<section id="t-bank" class="tab" hidden>
+  <div class="card" id="bk-head"></div>
+  <div class="card"><b>📋 Kreditanfragen</b><div id="bk-req"></div></div>
+  <div class="card"><b>⚙️ Konditionen</b>
+    <div class="kv"><span>Kreditzins (Basis) % p.a.</span><input class="in-s" id="bk-rl" type="number" inputmode="decimal" step="0.1"></div>
+    <div class="kv"><span>Einlagenzins % p.a.</span><input class="in-s" id="bk-rd" type="number" inputmode="decimal" step="0.1"></div>
+    <div class="kv"><span>Kontoführung / Monat</span><input class="in-s" id="bk-fa" type="number" inputmode="decimal" step="0.1"></div>
+    <div class="kv"><span>Kreditgebühr %</span><input class="in-s" id="bk-fl" type="number" inputmode="decimal" step="0.1"></div>
+    <button onclick="bSaveRates()">Konditionen speichern</button>
+    <div class="muted small">Hohe Kreditzinsen = weniger Anfragen. Hohe Einlagenzinsen &amp; niedrige Gebühren = mehr neue Kunden, aber weniger Gewinn.</div></div>
+  <div class="card"><b>📒 Bilanz</b><div id="bk-bil"></div></div>
+  <div class="card"><b>📊 Gewinn &amp; Verlust</b><div id="bk-pl"></div></div>
+  <div class="card"><b>💶 Gewinn auszahlen</b><div id="bk-av" style="padding:4px 0"></div>
+    <select id="bk-pacc"></select><div class="row"><input id="bk-pamt" type="number" inputmode="decimal" placeholder="Betrag HB$"><button class="s" style="width:34%" onclick="bPayAll()">Max.</button></div>
+    <div class="row"><button onclick="bPayout()">An mein Konto</button><button class="s" onclick="bInject()">Kapital einzahlen</button></div>
+    <div class="muted small">Auszahlbar ist der Gewinn über dem Startkapital – die Bank behält mindestens 10 % der Kundeneinlagen als Reserve. „Kapital einzahlen“ überweist dein Geld in die Bank.</div></div>
+  <div class="card"><b>🏷️ Kredite</b><div id="bk-loans"></div></div>
+  <div class="card"><b>👥 Kunden</b><div id="bk-cust"></div></div>
+</section>
+
+<!-- ERFOLGE -->
+<section id="t-ach" class="tab" hidden>
+  <a class="back" onclick="showTab('more')">‹ Mehr</a>
+  <div class="card lvl" id="lv-card"></div>
+  <div class="muted small" id="ach-cnt" style="text-align:center"></div>
+  <div id="ach-grid" class="bgrid"></div>
+  <div class="muted small" style="text-align:center">XP gibt es für Zahlungen, Überweisungen, Depot-Trades, Daueraufträge, Kredite u. v. m.</div>
+</section>
+
 <!-- MEHR -->
 <section id="t-more" class="tab" hidden>
+  <div class="card"><b>Dein Fortschritt</b><button class="s" onclick="showTab('ach')">🏆 Erfolge &amp; Level</button><button class="s" onclick="showTab('stat')">📊 Statistik</button><button class="s" onclick="openPdfSheet()">📄 Kontoauszug als PDF</button></div>
   <div class="card"><b>Sicherheit</b>
     <button class="s" onclick="changePin()">PIN ändern</button>
     <button class="s" id="fid-btn" onclick="toggleFace()"></button>
@@ -134,18 +167,21 @@
   <div class="card"><b>Profil &amp; Sparzins</b>
     <input id="cf-name" placeholder="Name auf der Karte"><div class="row"><input id="cf-rate" type="number" inputmode="decimal" step="0.1" placeholder="Sparzins % p.a."><button style="width:40%" onclick="cfSave()">Speichern</button></div>
     <div class="muted small">Zinsen werden täglich auf allen Sparkonten gutgeschrieben.</div></div>
-  <div class="card"><b>Bankchef</b><select id="ck"></select><input id="ca" type="number" inputmode="decimal" placeholder="Betrag HB$"><div class="row"><button onclick="chef(1)">Geld drucken</button><button class="s" onclick="chef(-1)">Abziehen</button></div><div class="row"><input id="zs" type="number" inputmode="decimal" placeholder="Zinssatz %" value="2"><button onclick="zins()">Zinsen ausschütten</button></div></div>
+  <div class="card"><b>Bankchef-Tools (Spielgeld drucken)</b><select id="ck"></select><input id="ca" type="number" inputmode="decimal" placeholder="Betrag HB$"><div class="row"><button onclick="chef(1)">Geld drucken</button><button class="s" onclick="chef(-1)">Abziehen</button></div><div class="row"><input id="zs" type="number" inputmode="decimal" placeholder="Zinssatz %" value="2"><button onclick="zins()">Zinsen ausschütten</button></div></div>
   <div class="card"><b>Sicherung</b><div class="muted small">Daten liegen nur auf diesem iPhone. Kopiere eine Sicherung und hebe sie z.B. in Notizen auf.</div>
     <button class="s" onclick="bkExport()">Sicherung kopieren</button><button class="s" onclick="bkImport()">Sicherung einspielen</button></div>
   <button class="s" onclick="resetBank()">Bank zurücksetzen</button>
-  <div class="muted small" style="text-align:center;margin-top:14px">Habicht Private Bank · Version 2.0 · Spielgeld</div>
+  <div class="muted small" style="text-align:center;margin-top:14px">Habicht Private Bank · Version 3.0 · Spielgeld</div>
 </section>
 </main>
 
 <nav id="tabs">
   <a data-t="home" class="on">🏠<span>Start</span></a><a data-t="card">💳<span>Karte</span></a><a data-t="pay">💸<span>Zahlen</span></a>
-  <a data-t="dep">📈<span>Depot</span></a><a data-t="stat">📊<span>Statistik</span></a><a data-t="more">⚙️<span>Mehr</span></a>
+  <a data-t="dep">📈<span>Depot</span></a><a data-t="bank">🏛️<span>Bank</span></a><a data-t="more">⚙️<span>Mehr</span></a>
 </nav>
 <script src="qr.js"></script>
+<script src="bank.js"></script>
+<script src="ach.js"></script>
+<script src="pdf.js"></script>
 <script src="app.js"></script>
 </body></html>

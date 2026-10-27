@@ -88,3 +88,21 @@ summary{padding:8px 0;color:#d4af37;font-weight:600}
 .leg i{width:11px;height:11px;border-radius:3px;display:block;flex:none}
 .leg .bar{flex:1;height:5px;background:#222;border-radius:3px;overflow:hidden}.leg .bar u{display:block;height:100%}
 .sums>div{flex:1;background:#0f1218;border-radius:10px;padding:8px;text-align:center}
+
+/* v3 */
+.kv{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #1f232d;font-size:14px}
+.kv.tot{border-top:1px solid #3a321a;border-bottom:0;font-weight:700}
+.kv input.in-s{width:42%;margin:0;padding:8px 10px;text-align:right}
+.bil{display:grid;grid-template-columns:1fr 1fr;gap:14px}.bil .kv{font-size:13px;flex-direction:column;align-items:flex-start;gap:0}
+.plt td{padding:6px 0;font-size:13px}.plt tr.sumr td{border-top:1px solid #3a321a;font-weight:700;border-bottom:0}
+.pbar{display:block;height:5px;background:#222;border-radius:3px;overflow:hidden;margin-top:5px}.pbar u{display:block;height:100%;background:#d4af37;border-radius:3px;transition:width .5s}
+.pbar.big{height:11px;margin-top:8px}
+.lvl{cursor:pointer}.lv-top{display:flex;align-items:baseline;gap:8px;font-size:16px}.lv-top b{color:#d4af37;font-size:18px}
+.bgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.bdg{background:#12151c;border:1px solid #262a35;border-radius:14px;padding:12px 10px;text-align:center;opacity:.55;filter:grayscale(.9)}
+.bdg.on{opacity:1;filter:none;border-color:#d4af37;background:linear-gradient(160deg,#241f10,#12151c)}
+.bdg .ic{font-size:30px}.bdg b{display:block;margin:4px 0 2px;font-size:14px}.bdg small{display:block;color:#8a8f9c;font-size:11px;line-height:1.3}.bdg small.gold{color:#d4af37;margin-top:4px}
+a.back{display:block;color:#d4af37;padding:10px 2px;cursor:pointer;font-size:15px}
+a.btnlink{display:block;text-align:center;text-decoration:none;background:#2a2f3a;color:#eee;padding:12px;border-radius:11px;margin:4px 0;font-weight:600}
+#confetti{position:fixed;inset:0;width:100vw;height:100vh;z-index:950;pointer-events:none}
+[hidden]{display:none!important}
